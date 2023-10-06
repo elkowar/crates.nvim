@@ -254,67 +254,77 @@ function M.process_api_crate(crate: toml.Crate, api_crate: Crate): CrateInfo, {D
                     info.vers_update = newest
                 end
             else
-                -- version does not match, upgrade available
-                local match, match_pre, match_yanked = util.get_newest(versions, avoid_pre, crate:vers_reqs())
-                info.vers_match = match or match_pre or match_yanked
-                info.vers_upgrade = newest
+                -- don't emit version related errors when the registry is set explicitly,
+                -- as custom registries are currently not supported fully by crates.nvim
+                -- Temporary solution for https://github.com/Saecki/crates.nvim/issues/51
+                if crate.registry == nil then
+                    -- version does not match, upgrade available
+                    local match, match_pre, match_yanked = util.get_newest(versions, avoid_pre, crate:vers_reqs())
+                    info.vers_match = match or match_pre or match_yanked
+                    info.vers_upgrade = newest
 
-                if info.vers_match then
-                    if crate.vers and crate.vers.text ~= edit.version_text(crate, info.vers_match.parsed) then
-                        info.vers_update = info.vers_match
+                    if info.vers_match then
+                        if crate.vers and crate.vers.text ~= edit.version_text(crate, info.vers_match.parsed) then
+                            info.vers_update = info.vers_match
+                        end
                     end
-                end
 
-                table.insert(diagnostics, crate_diagnostic(
-                    crate,
-                    "vers_upgrade",
-                    vim.diagnostic.severity.WARN,
-                    "vers"
-                ))
-
-                if match then
-                    -- found a match
-                    info.match_kind = "version"
-                elseif match_pre then
-                    -- found a pre-release match
-                    info.match_kind = "prerelease"
                     table.insert(diagnostics, crate_diagnostic(
                         crate,
-                        "vers_pre",
+                        "vers_upgrade",
                         vim.diagnostic.severity.WARN,
                         "vers"
                     ))
-                elseif match_yanked then
-                    -- found a yanked match
-                    info.match_kind = "yanked"
-                    table.insert(diagnostics, crate_diagnostic(
-                        crate,
-                        "vers_yanked",
-                        vim.diagnostic.severity.ERROR,
-                        "vers"
-                    ))
-                else
-                    -- no match found
-                    info.match_kind = "nomatch"
-                    local kind: DiagnosticKind = "vers_nomatch"
-                    if not crate.vers then
-                        kind = "crate_novers"
+
+                    if match then
+                        -- found a match
+                        info.match_kind = "version"
+                    elseif match_pre then
+                        -- found a pre-release match
+                        info.match_kind = "prerelease"
+                        table.insert(diagnostics, crate_diagnostic(
+                            crate,
+                            "vers_pre",
+                            vim.diagnostic.severity.WARN,
+                            "vers"
+                        ))
+                    elseif match_yanked then
+                        -- found a yanked match
+                        info.match_kind = "yanked"
+                        table.insert(diagnostics, crate_diagnostic(
+                            crate,
+                            "vers_yanked",
+                            vim.diagnostic.severity.ERROR,
+                            "vers"
+                        ))
+                    else
+                        -- no match found
+                        info.match_kind = "nomatch"
+                        local kind: DiagnosticKind = "vers_nomatch"
+                        if not crate.vers then
+                            kind = "crate_novers"
+                        end
+                        table.insert(diagnostics, crate_diagnostic(
+                            crate,
+                            kind,
+                            vim.diagnostic.severity.ERROR,
+                            "vers"
+                        ))
                     end
-                    table.insert(diagnostics, crate_diagnostic(
-                        crate,
-                        kind,
-                        vim.diagnostic.severity.ERROR,
-                        "vers"
-                    ))
                 end
             end
         else
-            table.insert(diagnostics, crate_diagnostic(
-                crate,
-                "crate_error_fetching",
-                vim.diagnostic.severity.ERROR,
-                "vers"
-            ))
+            -- don't emit fetch error when the registry is set explicitly,
+            -- as custom registries are currently not supported fully by crates.nvim
+            -- Temporary solution for https://github.com/Saecki/crates.nvim/issues/51
+            if crate.registry == nil then
+                table.insert(diagnostics, crate_diagnostic(
+                    crate,
+                    "crate_error_fetching",
+                    vim.diagnostic.severity.ERROR,
+                    "vers"
+                ))
+            end
         end
     end
 
